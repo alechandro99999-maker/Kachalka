@@ -59,7 +59,7 @@ def download():
     else:
         # Обычный MP4
         ydl_opts = {
-            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "format": "best[ext=mp4]/best",
             "cookiefile": "cookies.txt",
             "outtmpl": output_path + ".%(ext)s",
             "quiet": True,
