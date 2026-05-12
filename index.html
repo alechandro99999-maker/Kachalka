@@ -459,7 +459,7 @@
 
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = filename;
+      link.download = filename.replace(/[^\w\s.-]/gi, '_');
       link.click();
 
       setStatus(`
