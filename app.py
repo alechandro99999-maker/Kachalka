@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import yt_dlp
 import os
@@ -113,7 +113,7 @@ def info():
 
 @app.route("/")
 def index():
-    return "Kachalka API работает!"
+    return send_from_directory(".", "index.html")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
