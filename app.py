@@ -43,6 +43,7 @@ def download():
                 "preferredquality": "192",
             }],
             "quiet": True,
+            "cookiefile": "cookies.txt",
         }
         ext = "mp3"
     elif fmt == "no_watermark":
@@ -50,6 +51,7 @@ def download():
         ydl_opts = {
             "format": "best",
             "outtmpl": output_path + ".%(ext)s",
+            "cookiefile": "cookies.txt",
             "quiet": True,
             "extractor_args": {"tiktok": {"webpage_download": True}},
         }
@@ -58,6 +60,7 @@ def download():
         # Обычный MP4
         ydl_opts = {
             "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "cookiefile": "cookies.txt",
             "outtmpl": output_path + ".%(ext)s",
             "quiet": True,
             "merge_output_format": "mp4",
