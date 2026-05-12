@@ -49,10 +49,7 @@
     z-index: 1;
   }
 
-  header {
-    padding: 48px 0 0;
-    text-align: center;
-  }
+  header { padding: 48px 0 0; text-align: center; }
 
   .logo {
     font-family: 'Bebas Neue', sans-serif;
@@ -99,12 +96,48 @@
   .dot-ig { background: var(--insta); }
   .dot-yt { background: var(--yt); }
 
+  /* Счётчик */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 32px;
+    animation: fadeUp 0.6s 0.25s ease both;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+
+  .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--accent); line-height: 1.1; margin-top: 4px; }
+
+  .platform-bars {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 10px;
+    animation: fadeUp 0.6s 0.28s ease both;
+  }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { font-size: 12px; color: var(--muted); width: 70px; flex-shrink: 0; }
+  .bar-track { flex: 1; background: var(--bg); border-radius: 4px; height: 6px; overflow: hidden; }
+  .bar-fill { height: 6px; border-radius: 4px; width: 0%; transition: width 0.6s ease; }
+  .bar-count { font-size: 12px; color: var(--muted); width: 30px; text-align: right; flex-shrink: 0; }
+
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 28px;
-    margin-top: 40px;
+    margin-top: 24px;
     animation: fadeUp 0.6s 0.3s ease both;
   }
 
@@ -221,25 +254,6 @@
   .result-info { flex: 1; min-width: 0; }
   .result-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .result-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
-
-  .btn-get {
-    background: var(--accent);
-    color: #0a0a0a;
-    border: none;
-    border-radius: 8px;
-    padding: 9px 16px;
-    font-family: 'Manrope', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: background 0.15s;
-    text-decoration: none;
-    display: inline-block;
-  }
-  .btn-get:hover { background: var(--accent-dim); }
-
   .status-error { font-size: 13px; color: #ff6b6b; text-align: center; }
 
   .how { margin-top: 48px; animation: fadeUp 0.6s 0.4s ease both; }
@@ -321,6 +335,7 @@
     .steps { grid-template-columns: 1fr; }
     .features { grid-template-columns: 1fr; }
     .input-row { flex-direction: column; }
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
   }
 </style>
 </head>
@@ -336,6 +351,40 @@
       <div class="badge"><div class="dot dot-yt"></div> YouTube</div>
     </div>
   </header>
+
+  <!-- Счётчик -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Всего</div>
+      <div class="stat-value" id="stat-total">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Сегодня</div>
+      <div class="stat-value" id="stat-today">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">TikTok</div>
+      <div class="stat-value" id="stat-tiktok">0</div>
+    </div>
+  </div>
+
+  <div class="platform-bars">
+    <div class="bar-row">
+      <div class="bar-label">TikTok</div>
+      <div class="bar-track"><div class="bar-fill" id="bar-tt" style="background: var(--tiktok);"></div></div>
+      <div class="bar-count" id="cnt-tt">0</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Instagram</div>
+      <div class="bar-track"><div class="bar-fill" id="bar-ig" style="background: var(--insta);"></div></div>
+      <div class="bar-count" id="cnt-ig">0</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">YouTube</div>
+      <div class="bar-track"><div class="bar-fill" id="bar-yt" style="background: var(--yt);"></div></div>
+      <div class="bar-count" id="cnt-yt">0</div>
+    </div>
+  </div>
 
   <div class="card">
     <span class="input-label">Вставь ссылку на видео</span>
@@ -413,9 +462,7 @@
 </div>
 
 <script>
-  // ⬇️ Замени на URL своего бэкенда после деплоя на Railway
   const API_URL = "https://web-production-14d07.up.railway.app";
-
   let selectedFormat = 'mp4';
 
   function setFormat(el, format) {
@@ -426,6 +473,44 @@
 
   function setStatus(html) {
     document.getElementById('status').innerHTML = html;
+  }
+
+  function animateNum(id, val) {
+    const el = document.getElementById(id);
+    const start = parseInt(el.textContent) || 0;
+    const steps = 20;
+    let i = 0;
+    const t = setInterval(() => {
+      i++;
+      el.textContent = Math.round(start + (val - start) * (i / steps));
+      if (i >= steps) clearInterval(t);
+    }, 20);
+  }
+
+  function updateStats(data) {
+    animateNum('stat-total', data.total || 0);
+    animateNum('stat-today', data.today || 0);
+    animateNum('stat-tiktok', data.tiktok || 0);
+
+    const tt = data.tiktok || 0;
+    const ig = data.instagram || 0;
+    const yt = data.youtube || 0;
+    const max = Math.max(tt, ig, yt, 1);
+
+    document.getElementById('bar-tt').style.width = (tt / max * 100) + '%';
+    document.getElementById('bar-ig').style.width = (ig / max * 100) + '%';
+    document.getElementById('bar-yt').style.width = (yt / max * 100) + '%';
+    document.getElementById('cnt-tt').textContent = tt;
+    document.getElementById('cnt-ig').textContent = ig;
+    document.getElementById('cnt-yt').textContent = yt;
+  }
+
+  async function loadStats() {
+    try {
+      const res = await fetch(`${API_URL}/api/stats`);
+      const data = await res.json();
+      updateStats(data);
+    } catch(e) {}
   }
 
   async function fetchVideo() {
@@ -451,7 +536,6 @@
         throw new Error(err.error || 'Ошибка сервера');
       }
 
-      // Получаем файл и скачиваем его
       const blob = await res.blob();
       const ext = selectedFormat === 'mp3' ? 'mp3' : 'mp4';
       const filename = 'kachalka_video.' + ext;
@@ -471,6 +555,8 @@
         </div>
       `);
 
+      setTimeout(loadStats, 1500);
+
     } catch(e) {
       setStatus(`<div class="status-error">${e.message}</div>`);
     }
@@ -481,6 +567,9 @@
   document.getElementById('urlInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') fetchVideo();
   });
+
+  loadStats();
+  setInterval(loadStats, 30000);
 </script>
 
 </body>
