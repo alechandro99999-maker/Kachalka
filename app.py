@@ -7,6 +7,7 @@ import threading
 import time
 
 app = Flask(__name__)
+download_count = 0
 CORS(app)
 
 DOWNLOAD_DIR = "downloads"
@@ -77,6 +78,8 @@ def download():
             if f.startswith(file_id):
                 final_path = os.path.join(DOWNLOAD_DIR, f)
                 cleanup_file(final_path)
+                global download_count
+                download_count += 1
                 return send_file(
                     final_path,
                     as_attachment=True,
@@ -114,9 +117,9 @@ def info():
     except Exception as e:
         return jsonify({"error": str(e)[:200]}), 400
 
-@app.route("/")
-def index():
-    return send_from_directory(".", "index.html")
+@app.route("/api/stats")
+def stats():
+    return jsonify({"downloads": download_count})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
