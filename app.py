@@ -5,16 +5,45 @@ import os
 import uuid
 import threading
 import time
+from datetime import date
 
 app = Flask(__name__)
-download_count = 0
 CORS(app)
 
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+stats = {
+    "total": 0,
+    "today": 0,
+    "today_date": str(date.today()),
+    "tiktok": 0,
+    "instagram": 0,
+    "youtube": 0,
+}
+
+def detect_platform(url):
+    if "tiktok.com" in url:
+        return "tiktok"
+    elif "instagram.com" in url:
+        return "instagram"
+    elif "youtube.com" in url or "youtu.be" in url:
+        return "youtube"
+    return "other"
+
+def increment_stats(url):
+    global stats
+    today = str(date.today())
+    if stats["today_date"] != today:
+        stats["today"] = 0
+        stats["today_date"] = today
+    stats["total"] += 1
+    stats["today"] += 1
+    platform = detect_platform(url)
+    if platform in stats:
+        stats[platform] += 1
+
 def cleanup_file(path, delay=300):
-    """Удаляем файл через 5 минут после скачивания"""
     def delete():
         time.sleep(delay)
         if os.path.exists(path):
@@ -33,7 +62,6 @@ def download():
     file_id = str(uuid.uuid4())
     output_path = os.path.join(DOWNLOAD_DIR, file_id)
 
-    # Настройки в зависимости от формата
     if fmt == "mp3":
         ydl_opts = {
             "format": "bestaudio/best",
@@ -46,9 +74,7 @@ def download():
             "quiet": True,
             "cookiefile": "cookies.txt",
         }
-        ext = "mp3"
     elif fmt == "no_watermark":
-        # Для TikTok без водяного знака
         ydl_opts = {
             "format": "best",
             "outtmpl": output_path + ".%(ext)s",
@@ -56,9 +82,7 @@ def download():
             "quiet": True,
             "extractor_args": {"tiktok": {"webpage_download": True}},
         }
-        ext = "mp4"
     else:
-        # Обычный MP4
         ydl_opts = {
             "format": "best[ext=mp4]/best",
             "cookiefile": "cookies.txt",
@@ -66,20 +90,17 @@ def download():
             "quiet": True,
             "merge_output_format": "mp4",
         }
-        ext = "mp4"
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             title = info.get("title", "video")
 
-        # Ищем скачанный файл
         for f in os.listdir(DOWNLOAD_DIR):
             if f.startswith(file_id):
                 final_path = os.path.join(DOWNLOAD_DIR, f)
                 cleanup_file(final_path)
-                global download_count
-                download_count += 1
+                increment_stats(url)
                 return send_file(
                     final_path,
                     as_attachment=True,
@@ -95,15 +116,11 @@ def download():
 
 @app.route("/api/info", methods=["POST"])
 def info():
-    """Получить информацию о видео без скачивания"""
     data = request.json
     url = data.get("url", "").strip()
-
     if not url:
         return jsonify({"error": "Ссылка не указана"}), 400
-
     ydl_opts = {"quiet": True, "skip_download": True}
-
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -118,8 +135,12 @@ def info():
         return jsonify({"error": str(e)[:200]}), 400
 
 @app.route("/api/stats")
-def stats():
-    return jsonify({"downloads": download_count})
+def get_stats():
+    return jsonify(stats)
+
+@app.route("/")
+def index():
+    return send_from_directory(".", "index.html")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
