@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kachalka — качай видео</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #222;
+    --accent: #e8ff47;
+    --accent-dim: #c8df20;
+    --text: #f0f0f0;
+    --muted: #666;
+    --tiktok: #ff2d55;
+    --insta: #e1306c;
+    --yt: #ff0000;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,255,71,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,71,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    padding: 48px 0 0;
+    text-align: center;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(72px, 18vw, 120px);
+    letter-spacing: 0.04em;
+    line-height: 0.9;
+    color: var(--accent);
+    text-shadow: 0 0 60px rgba(232,255,71,0.3);
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .tagline {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 12px;
+    animation: fadeDown 0.6s 0.1s ease both;
+  }
+
+  .platforms {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 24px;
+    animation: fadeDown 0.6s 0.2s ease both;
+  }
+
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--surface);
+  }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-tt { background: var(--tiktok); }
+  .dot-ig { background: var(--insta); }
+  .dot-yt { background: var(--yt); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 40px;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  .input-label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .input-row { display: flex; gap: 10px; }
+
+  .url-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .url-input::placeholder { color: var(--muted); }
+  .url-input:focus { border-color: var(--accent); }
+
+  .btn-download {
+    background: var(--accent);
+    color: #0a0a0a;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 22px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-download:hover { background: var(--accent-dim); }
+  .btn-download:active { transform: scale(0.97); }
+  .btn-download:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .format-row { display: flex; gap: 8px; margin-top: 16px; }
+
+  .format-btn {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 8px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .format-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,255,71,0.05);
+  }
+
+  .status {
+    margin-top: 20px;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .status-idle { font-size: 13px; color: var(--muted); text-align: center; }
+
+  .status-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--accent);
+  }
+
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(232,255,71,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  .status-result {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .result-info { flex: 1; min-width: 0; }
+  .result-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .result-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .btn-get {
+    background: var(--accent);
+    color: #0a0a0a;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-get:hover { background: var(--accent-dim); }
+
+  .status-error { font-size: 13px; color: #ff6b6b; text-align: center; }
+
+  .how { margin-top: 48px; animation: fadeUp 0.6s 0.4s ease both; }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 16px;
+  }
+
+  .step-num { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--accent); line-height: 1; }
+  .step-text { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+
+  .features {
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    animation: fadeUp 0.6s 0.5s ease both;
+  }
+
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .feature-icon {
+    width: 36px;
+    height: 36px;
+    background: rgba(232,255,71,0.08);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .feature-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .feature-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  footer {
+    text-align: center;
+    padding: 48px 0 32px;
+    font-size: 12px;
+    color: var(--muted);
+    animation: fadeUp 0.6s 0.6s ease both;
+  }
+
+  footer span { color: var(--accent); }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 500px) {
+    .steps { grid-template-columns: 1fr; }
+    .features { grid-template-columns: 1fr; }
+    .input-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="logo">KACHALKA</div>
+    <div class="tagline">Качай видео без рекламы и регистрации</div>
+    <div class="platforms">
+      <div class="badge"><div class="dot dot-tt"></div> TikTok</div>
+      <div class="badge"><div class="dot dot-ig"></div> Instagram</div>
+      <div class="badge"><div class="dot dot-yt"></div> YouTube</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <span class="input-label">Вставь ссылку на видео</span>
+    <div class="input-row">
+      <input class="url-input" id="urlInput" type="url" placeholder="https://www.tiktok.com/...">
+      <button class="btn-download" id="fetchBtn" onclick="fetchVideo()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 16l-4-4h3V4h2v8h3l-4 4z"/><path d="M4 20h16"/></svg>
+        Качать
+      </button>
+    </div>
+
+    <div class="format-row">
+      <button class="format-btn active" onclick="setFormat(this,'mp4')">MP4 видео</button>
+      <button class="format-btn" onclick="setFormat(this,'mp3')">MP3 аудио</button>
+      <button class="format-btn" onclick="setFormat(this,'no_watermark')">Без водяного знака</button>
+    </div>
+
+    <div class="status" id="status">
+      <div class="status-idle">Поддерживаются TikTok, Instagram Reels и YouTube</div>
+    </div>
+  </div>
+
+  <div class="how">
+    <div class="section-title">Как это работает</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-text">Скопируй ссылку на видео из TikTok, Instagram или YouTube</div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-text">Вставь в поле выше и выбери формат</div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-text">Нажми «Качать» и сохрани файл на устройство</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">⚡</div>
+      <div>
+        <div class="feature-title">Без рекламы</div>
+        <div class="feature-desc">Никаких баннеров, попапов и редиректов</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🚫</div>
+      <div>
+        <div class="feature-title">Без водяного знака</div>
+        <div class="feature-desc">TikTok видео без логотипа — готово к публикации</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔒</div>
+      <div>
+        <div class="feature-title">Без регистрации</div>
+        <div class="feature-desc">Не храним данные, не требуем аккаунт</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📱</div>
+      <div>
+        <div class="feature-title">Работает везде</div>
+        <div class="feature-desc">iPhone, Android, компьютер — любое устройство</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Сделано с <span>♥</span> для создателей контента · Только для личного использования
+  </footer>
+</div>
+
+<script>
+  // ⬇️ Замени на URL своего бэкенда после деплоя на Railway
+  const API_URL = "https://твой-проект.railway.app";
+
+  let selectedFormat = 'mp4';
+
+  function setFormat(el, format) {
+    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    selectedFormat = format;
+  }
+
+  function setStatus(html) {
+    document.getElementById('status').innerHTML = html;
+  }
+
+  async function fetchVideo() {
+    const url = document.getElementById('urlInput').value.trim();
+    if (!url) {
+      setStatus('<div class="status-error">Вставь ссылку на видео</div>');
+      return;
+    }
+
+    const btn = document.getElementById('fetchBtn');
+    btn.disabled = true;
+    setStatus('<div class="status-loading"><div class="spinner"></div> Скачиваем видео...</div>');
+
+    try {
+      const res = await fetch(`${API_URL}/api/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, format: selectedFormat })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Ошибка сервера');
+      }
+
+      // Получаем файл и скачиваем его
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const nameMatch = disposition.match(/filename="(.+?)"/);
+      const filename = nameMatch ? decodeURIComponent(nameMatch[1]) : `video.${selectedFormat === 'mp3' ? 'mp3' : 'mp4'}`;
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+
+      setStatus(`
+        <div class="status-result">
+          <div class="result-info">
+            <div class="result-title">${filename}</div>
+            <div class="result-meta">${selectedFormat.toUpperCase()} · скачивание началось</div>
+          </div>
+          <span style="color: var(--accent); font-size: 20px;">✓</span>
+        </div>
+      `);
+
+    } catch(e) {
+      setStatus(`<div class="status-error">${e.message}</div>`);
+    }
+
+    btn.disabled = false;
+  }
+
+  document.getElementById('urlInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') fetchVideo();
+  });
+</script>
+
+</body>
+</html>
