@@ -453,13 +453,12 @@
 
       // Получаем файл и скачиваем его
       const blob = await res.blob();
-      const disposition = res.headers.get('Content-Disposition') || '';
-      const nameMatch = disposition.match(/filename="(.+?)"/);
-      const filename = nameMatch ? decodeURIComponent(nameMatch[1]) : `video.${selectedFormat === 'mp3' ? 'mp3' : 'mp4'}`;
+      const ext = selectedFormat === 'mp3' ? 'mp3' : 'mp4';
+      const filename = 'kachalka_video.' + ext;
 
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = filename.replace(/[^\w\s.-]/gi, '_');
+      link.download = filename;
       link.click();
 
       setStatus(`
