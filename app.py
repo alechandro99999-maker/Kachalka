@@ -93,19 +93,23 @@ def download():
     data = request.json
     url = data.get("url", "").strip()
     fmt = data.get("format", "mp4")
+    if "youtube.com" in url or "youtu.be" in url:
+            cookie_file = "youtube_cookies.txt"
+        else:
+            cookie_file = "cookies.txt"
     if not url:
         return jsonify({"error": "Ссылка не указана"}), 400
     file_id = str(uuid.uuid4())
     output_path = os.path.join(DOWNLOAD_DIR, file_id)
     if fmt == "mp3":
         ydl_opts = {
-            "format": "bestaudio/best",
+            "cookiefile": cookie_file,
             "outtmpl": output_path + ".%(ext)s",
             "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
             "quiet": True,
             "cookiefile": "cookies.txt",
         }
-    elif fmt == "no_watermark":
+    "cookiefile": cookie_file,
         ydl_opts = {
             "format": "best",
             "outtmpl": output_path + ".%(ext)s",
@@ -116,7 +120,7 @@ def download():
     else:
         ydl_opts = {
             "format": "best[ext=mp4]/best",
-            "cookiefile": "cookies.txt",
+            "cookiefile": cookie_file,
             "outtmpl": output_path + ".%(ext)s",
             "quiet": True,
             "merge_output_format": "mp4",
