@@ -6,6 +6,7 @@ import uuid
 import threading
 import time
 from datetime import date
+import psycopg2
 
 app = Flask(__name__)
 CORS(app)
@@ -13,35 +14,72 @@ CORS(app)
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-stats = {
-    "total": 0,
-    "today": 0,
-    "today_date": str(date.today()),
-    "tiktok": 0,
-    "instagram": 0,
-    "youtube": 0,
-}
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-def detect_platform(url):
-    if "tiktok.com" in url:
-        return "tiktok"
-    elif "instagram.com" in url:
-        return "instagram"
-    elif "youtube.com" in url or "youtu.be" in url:
-        return "youtube"
-    return "other"
+def get_db():
+    return psycopg2.connect(DATABASE_URL)
+
+def init_db():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stats (
+                key TEXT PRIMARY KEY,
+                value INTEGER DEFAULT 0
+            )
+        """)
+        for key in ["total", "today", "tiktok", "instagram", "youtube"]:
+            cur.execute("INSERT INTO stats (key, value) VALUES (%s, 0) ON CONFLICT DO NOTHING", (key,))
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        cur.execute("INSERT INTO meta (key, value) VALUES ('today_date', %s) ON CONFLICT DO NOTHING", (str(date.today()),))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"DB init error: {e}")
 
 def increment_stats(url):
-    global stats
-    today = str(date.today())
-    if stats["today_date"] != today:
-        stats["today"] = 0
-        stats["today_date"] = today
-    stats["total"] += 1
-    stats["today"] += 1
-    platform = detect_platform(url)
-    if platform in stats:
-        stats[platform] += 1
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        today = str(date.today())
+        cur.execute("SELECT value FROM meta WHERE key = 'today_date'")
+        row = cur.fetchone()
+        if row and row[0] != today:
+            cur.execute("UPDATE stats SET value = 0 WHERE key = 'today'")
+            cur.execute("UPDATE meta SET value = %s WHERE key = 'today_date'", (today,))
+        cur.execute("UPDATE stats SET value = value + 1 WHERE key = 'total'")
+        cur.execute("UPDATE stats SET value = value + 1 WHERE key = 'today'")
+        if "tiktok.com" in url:
+            cur.execute("UPDATE stats SET value = value + 1 WHERE key = 'tiktok'")
+        elif "instagram.com" in url:
+            cur.execute("UPDATE stats SET value = value + 1 WHERE key = 'instagram'")
+        elif "youtube.com" in url or "youtu.be" in url:
+            cur.execute("UPDATE stats SET value = value + 1 WHERE key = 'youtube'")
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Stats error: {e}")
+
+def get_stats_db():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT key, value FROM stats")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {row[0]: row[1] for row in rows}
+    except Exception as e:
+        print(f"Get stats error: {e}")
+        return {"total": 0, "today": 0, "tiktok": 0, "instagram": 0, "youtube": 0}
 
 def cleanup_file(path, delay=300):
     def delete():
@@ -55,22 +93,15 @@ def download():
     data = request.json
     url = data.get("url", "").strip()
     fmt = data.get("format", "mp4")
-
     if not url:
         return jsonify({"error": "Ссылка не указана"}), 400
-
     file_id = str(uuid.uuid4())
     output_path = os.path.join(DOWNLOAD_DIR, file_id)
-
     if fmt == "mp3":
         ydl_opts = {
             "format": "bestaudio/best",
             "outtmpl": output_path + ".%(ext)s",
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }],
+            "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
             "quiet": True,
             "cookiefile": "cookies.txt",
         }
@@ -90,25 +121,17 @@ def download():
             "quiet": True,
             "merge_output_format": "mp4",
         }
-
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             title = info.get("title", "video")
-
         for f in os.listdir(DOWNLOAD_DIR):
             if f.startswith(file_id):
                 final_path = os.path.join(DOWNLOAD_DIR, f)
                 cleanup_file(final_path)
                 increment_stats(url)
-                return send_file(
-                    final_path,
-                    as_attachment=True,
-                    download_name=f"{title[:60]}.{f.split('.')[-1]}"
-                )
-
+                return send_file(final_path, as_attachment=True, download_name=f"{title[:60]}.{f.split('.')[-1]}")
         return jsonify({"error": "Файл не найден после скачивания"}), 500
-
     except yt_dlp.utils.DownloadError as e:
         return jsonify({"error": f"Ошибка скачивания: {str(e)[:200]}"}), 400
     except Exception as e:
@@ -120,28 +143,22 @@ def info():
     url = data.get("url", "").strip()
     if not url:
         return jsonify({"error": "Ссылка не указана"}), 400
-    ydl_opts = {"quiet": True, "skip_download": True}
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
             info = ydl.extract_info(url, download=False)
-            return jsonify({
-                "title": info.get("title", "Видео"),
-                "duration": info.get("duration"),
-                "thumbnail": info.get("thumbnail"),
-                "platform": info.get("extractor_key", ""),
-                "uploader": info.get("uploader", ""),
-            })
+            return jsonify({"title": info.get("title", "Видео"), "platform": info.get("extractor_key", "")})
     except Exception as e:
         return jsonify({"error": str(e)[:200]}), 400
 
 @app.route("/api/stats")
-def get_stats():
-    return jsonify(stats)
+def api_stats():
+    return jsonify(get_stats_db())
 
 @app.route("/")
 def index():
     return send_from_directory(".", "index.html")
 
 if __name__ == "__main__":
+    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
