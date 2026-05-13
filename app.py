@@ -88,32 +88,37 @@ def cleanup_file(path, delay=300):
             os.remove(path)
     threading.Thread(target=delete, daemon=True).start()
 
+def get_cookie_file(url):
+    if "youtube.com" in url or "youtu.be" in url:
+        return "youtube_cookies.txt"
+    return "cookies.txt"
+
 @app.route("/api/download", methods=["POST"])
 def download():
     data = request.json
     url = data.get("url", "").strip()
     fmt = data.get("format", "mp4")
-    if "youtube.com" in url or "youtu.be" in url:
-            cookie_file = "youtube_cookies.txt"
-        else:
-            cookie_file = "cookies.txt"
+
     if not url:
         return jsonify({"error": "Ссылка не указана"}), 400
+
     file_id = str(uuid.uuid4())
     output_path = os.path.join(DOWNLOAD_DIR, file_id)
+    cookie_file = get_cookie_file(url)
+
     if fmt == "mp3":
         ydl_opts = {
-            "cookiefile": cookie_file,
+            "format": "bestaudio/best",
             "outtmpl": output_path + ".%(ext)s",
             "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
             "quiet": True,
-            "cookiefile": "cookies.txt",
+            "cookiefile": cookie_file,
         }
-    "cookiefile": cookie_file,
+    elif fmt == "no_watermark":
         ydl_opts = {
             "format": "best",
             "outtmpl": output_path + ".%(ext)s",
-            "cookiefile": "cookies.txt",
+            "cookiefile": cookie_file,
             "quiet": True,
             "extractor_args": {"tiktok": {"webpage_download": True}},
         }
@@ -125,17 +130,25 @@ def download():
             "quiet": True,
             "merge_output_format": "mp4",
         }
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             title = info.get("title", "video")
+
         for f in os.listdir(DOWNLOAD_DIR):
             if f.startswith(file_id):
                 final_path = os.path.join(DOWNLOAD_DIR, f)
                 cleanup_file(final_path)
                 increment_stats(url)
-                return send_file(final_path, as_attachment=True, download_name=f"{title[:60]}.{f.split('.')[-1]}")
+                return send_file(
+                    final_path,
+                    as_attachment=True,
+                    download_name=f"{title[:60]}.{f.split('.')[-1]}"
+                )
+
         return jsonify({"error": "Файл не найден после скачивания"}), 500
+
     except yt_dlp.utils.DownloadError as e:
         return jsonify({"error": f"Ошибка скачивания: {str(e)[:200]}"}), 400
     except Exception as e:
