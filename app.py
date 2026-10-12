@@ -226,7 +226,7 @@ def index():
 
 def set_webhook():
     time.sleep(3)
-    os.environ.get("RENDER_PUBLIC_DOMAIN") or os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
+        railway_url = os.environ.get("RENDER_PUBLIC_DOMAIN") or os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
     if railway_url and TELEGRAM_TOKEN:
         webhook_url = f"https://{railway_url}/webhook/{TELEGRAM_TOKEN}"
         requests.post(f"{TELEGRAM_API}/setWebhook", json={"url": webhook_url})
