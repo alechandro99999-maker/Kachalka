@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import yt_dlp
@@ -146,6 +147,30 @@ def has_audio(path):
     )
     return bool(r.stdout.strip())
  
+def video_codec(path):
+    r = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=codec_name", "-of", "csv=p=0", path],
+        capture_output=True, text=True, timeout=60,
+    )
+    return r.stdout.strip()
+ 
+def ensure_iphone_compatible(path):
+    """Если видео не H.264 в mp4 (VP9/AV1/HEVC/webm) — iPhone не сохранит его в Фото.
+    Перекодируем в H.264 + AAC. Возвращает путь к готовому файлу."""
+    if path.lower().endswith(".mp4") and video_codec(path) == "h264":
+        return path
+    out = os.path.splitext(path)[0] + "_h264.mp4"
+    cmd = ["ffmpeg", "-y", "-i", path, "-map_metadata", "-1",
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+           "-pix_fmt", "yuv420p", "-threads", "1",
+           "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    if r.returncode != 0 or not os.path.exists(out):
+        raise RuntimeError("ffmpeg: " + (r.stderr or "")[-300:])
+    os.remove(path)
+    return out
+ 
 def uniqualize_video(src, dst):
     """
     Лёгкая уникализация: небольшой кроп/зум со случайным смещением,
@@ -279,7 +304,7 @@ def process_tg_download(chat_id, url):
     cookie_file = get_cookie_file(url)
  
     ydl_opts = {
-        "format": "best[ext=mp4]/best",
+        "format": "best[ext=mp4][vcodec^=avc1]/best[ext=mp4]/best",
         "cookiefile": cookie_file,
         "outtmpl": output_path + ".%(ext)s",
         "quiet": True,
@@ -298,6 +323,8 @@ def process_tg_download(chat_id, url):
                 if ext == "mp3":
                     tg_send_audio(chat_id, final_path, caption=f"🎵 {title[:100]}")
                 else:
+                    with UNIQ_LOCK:
+                        final_path = ensure_iphone_compatible(final_path)
                     tg_send_video(chat_id, final_path, caption=f"📹 {title[:100]}")
                 cleanup_file(final_path)
                 increment_stats(url)
