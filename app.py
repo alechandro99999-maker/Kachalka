@@ -196,7 +196,8 @@ def uniqualize_video(src, dst):
     )
     af = f"atempo={speed:.4f},volume={volume:.3f},aresample=44100"
  
-    created = datetime.utcnow() - timedelta(days=rnd.randint(0, 60), seconds=rnd.randint(0, 86399))
+    # Дата «почти сейчас», иначе iPhone положит видео в «Фото» в прошлое, и оно не будет видно в конце ленты
+    created = datetime.utcnow() - timedelta(seconds=rnd.randint(5, 180))
  
     cmd = [
         "ffmpeg", "-y", "-i", src,
