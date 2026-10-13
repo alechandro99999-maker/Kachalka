@@ -205,15 +205,16 @@ def uniqualize_video(src, dst):
         "-map", "0:v:0",
         "-vf", vf,
         "-c:v", "libx264", "-preset", "veryfast",
+        "-profile:v", "high", "-level", "4.1", "-tag:v", "avc1",
         "-crf", str(rnd.randint(22, 26)),
         "-pix_fmt", "yuv420p", "-threads", "1",
     ]
     if has_audio(src):
-        cmd += ["-map", "0:a:0", "-af", af, "-c:a", "aac", "-b:a", f"{rnd.choice([112, 128, 160])}k"]
+        cmd += ["-map", "0:a:0", "-af", af, "-c:a", "aac", "-ac", "2", "-ar", "44100",
+                "-b:a", f"{rnd.choice([112, 128, 160])}k"]
     else:
         cmd += ["-an"]
     cmd += [
-        "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact",
         "-metadata", f"creation_time={created.strftime('%Y-%m-%dT%H:%M:%S.000000Z')}",
         "-movflags", "+faststart",
         dst,
