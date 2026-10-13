@@ -1,5 +1,3 @@
-
-App · PY
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import yt_dlp
@@ -312,17 +310,60 @@ def process_tg_download(chat_id, url):
  
 HELP_TEXT = (
     "👋 Привет! Я Качалка.\n\n"
-    "📥 Скачать видео: отправь ссылку из TikTok, Instagram или YouTube.\n\n"
-    "🎬 Уникализировать видео:\n"
-    "• отправь мне видеофайл (до 20 МБ), или\n"
-    "• /u ссылка — скачаю по ссылке и уникализирую.\n\n"
+    "🔗 Отправь ссылку из TikTok, Instagram или YouTube — я предложу: скачать или уникализировать.\n\n"
+    "🎬 Или пришли видеофайл (до 20 МБ) — я его уникализирую.\n\n"
     "Уникализация: лёгкий зум/кроп, цвет, шум, скорость ±3%, звук, новые метаданные."
 )
+ 
+# Ссылки, ожидающие выбора действия: {id: (url, время)}. Хранится в памяти.
+PENDING = {}
+PENDING_TTL = 3600
+ 
+def pending_put(url):
+    now = time.time()
+    for k in [k for k, (_, t) in PENDING.items() if now - t > PENDING_TTL]:
+        PENDING.pop(k, None)
+    key = uuid.uuid4().hex[:10]
+    PENDING[key] = (url, now)
+    return key
+ 
+def tg_send_menu(chat_id, url):
+    key = pending_put(url)
+    requests.post(f"{TELEGRAM_API}/sendMessage", json={
+        "chat_id": chat_id,
+        "text": "Что сделать с видео?",
+        "reply_markup": {"inline_keyboard": [[
+            {"text": "📥 Скачать", "callback_data": f"dl:{key}"},
+            {"text": "🎬 Уникализировать", "callback_data": f"uq:{key}"},
+        ]]},
+    })
+ 
+def handle_callback(cb):
+    cb_id = cb.get("id")
+    chat_id = cb.get("message", {}).get("chat", {}).get("id")
+    data = cb.get("data", "")
+    requests.post(f"{TELEGRAM_API}/answerCallbackQuery", json={"callback_query_id": cb_id})
+    if not chat_id or ":" not in data:
+        return
+    action, key = data.split(":", 1)
+    item = PENDING.get(key)
+    if not item:
+        tg_send(chat_id, "⌛ Ссылка устарела. Отправь её ещё раз.")
+        return
+    url = item[0]
+    if action == "dl":
+        threading.Thread(target=process_tg_download, args=(chat_id, url)).start()
+    elif action == "uq":
+        threading.Thread(target=process_uniq_link, args=(chat_id, url)).start()
  
 @app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def telegram_webhook():
     data = request.json
     if not data:
+        return "ok"
+ 
+    if data.get("callback_query"):
+        handle_callback(data["callback_query"])
         return "ok"
  
     message = data.get("message", {})
@@ -356,9 +397,9 @@ def telegram_webhook():
         else:
             tg_send(chat_id, "Отправь так: /u ссылка_на_видео — или просто пришли видеофайл.")
     elif text.startswith("http"):
-        threading.Thread(target=process_tg_download, args=(chat_id, text)).start()
+        tg_send_menu(chat_id, text)
     else:
-        tg_send(chat_id, "Отправь ссылку на видео, видеофайл или /u ссылка для уникализации 👇")
+        tg_send(chat_id, "Отправь ссылку на видео или видеофайл 👇")
  
     return "ok"
  
@@ -425,7 +466,7 @@ def set_webhook():
     domain = os.environ.get("RENDER_PUBLIC_DOMAIN") or os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
     if domain and TELEGRAM_TOKEN:
         webhook_url = f"https://{domain}/webhook/{TELEGRAM_TOKEN}"
-        requests.post(f"{TELEGRAM_API}/setWebhook", json={"url": webhook_url})
+        requests.post(f"{TELEGRAM_API}/setWebhook", json={"url": webhook_url, "allowed_updates": ["message", "callback_query"]})
         print("Webhook set", flush=True)
  
 if __name__ == "__main__":
@@ -433,3 +474,4 @@ if __name__ == "__main__":
     threading.Thread(target=set_webhook, daemon=True).start()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+ 
